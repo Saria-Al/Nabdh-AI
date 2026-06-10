@@ -1,0 +1,19 @@
+ACDC_extracted/
+ACDC_extracted.zip
+Cardic disease complete code and data/
+Cardic disease complete code and data.zip
+*.zip
+
+fl_outputs/
+outputs/
+feature_analysis/
+
+*.pt
+*.pth
+*.h5
+*.ckpt
+
+__pycache__/
+*.pyc
+.DS_Store
+.env
