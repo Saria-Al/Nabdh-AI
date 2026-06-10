@@ -1,0 +1,14 @@
+streamlit
+pandas
+numpy
+matplotlib
+opencv-python
+h5py
+torch
+torchvision
+scikit-learn
+xgboost
+reportlab
+arabic-reshaper
+python-bidi
+Pillow
