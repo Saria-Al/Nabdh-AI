@@ -1,0 +1,68 @@
+{
+  "accuracy": 0.95,
+  "classes": [
+    "ARV",
+    "DCM",
+    "HCM",
+    "MINF",
+    "NOR"
+  ],
+  "feature_columns": [
+    "num_slices",
+    "rv_volume_proxy",
+    "myo_volume_proxy",
+    "lv_volume_proxy",
+    "rv_area_mean",
+    "rv_area_max",
+    "myo_area_mean",
+    "myo_area_max",
+    "lv_area_mean",
+    "lv_area_max",
+    "rv_circularity_mean",
+    "myo_circularity_mean",
+    "lv_circularity_mean",
+    "myo_thickness_mean",
+    "myo_thickness_max",
+    "lv_rv_ratio",
+    "myo_lv_ratio",
+    "myo_rv_ratio"
+  ],
+  "confusion_matrix": [
+    [
+      3,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      4,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      4,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      4,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      4
+    ]
+  ],
+  "classification_report": "              precision    recall  f1-score   support\n\n         ARV       1.00      0.75      0.86         4\n         DCM       1.00      1.00      1.00         4\n         HCM       1.00      1.00      1.00         4\n        MINF       0.80      1.00      0.89         4\n         NOR       1.00      1.00      1.00         4\n\n    accuracy                           0.95        20\n   macro avg       0.96      0.95      0.95        20\nweighted avg       0.96      0.95      0.95        20\n"
+}

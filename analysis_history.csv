@@ -1,0 +1,53 @@
+Case ID,Date,Disease Code,Disease EN,Disease AR,Confidence,Status,File,User Role,User ID
+NBD-20260610-072020,2026-06-10 07:20,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,26.53,Completed,patient096_frame08_slice_13.h5,موظف مستشفى,1234567890
+NBD-20260610-224526,2026-06-10 22:45,MINF,Myocardial Infarction,احتشاء عضلة القلب,36.0,Completed,patient094_frame01_slice_6.h5,Hospital Staff,1234567890
+NBD-20260610-231347,2026-06-10 23:13,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,30.95,Completed,patient070_frame01_slice_0.h5,مدير النظام,١٢٣٤٥٦٧٨٩٠
+NBD-20260610-231454,2026-06-10 23:14,NOR,Normal,طبيعي,20.0,Completed,patient006_frame01_slice_0.h5,مدير النظام,١٢٣٤٥٦٧٨٩٠
+NBD-20260611-000111,2026-06-11 00:01,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,38.24,Completed,patient094_frame01_slice_5.h5,Hospital Staff,1234567890
+NBD-20260613-024620,2026-06-13 02:46,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,38.24,Completed,patient094_frame01_slice_5.h5,Hospital Staff,1234567890
+NBD-20260613-024858,2026-06-13 02:48,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient070_frame01_slice_4.h5,Administrator,1234567890
+NBD-20260613-025245,2026-06-13 02:52,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,36.36,Completed,patient080_frame01_slice_1.h5,Hospital Staff,1234567890
+NBD-20260613-025813,2026-06-13 02:58,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,38.24,Completed,patient094_frame01_slice_5.h5,Hospital Staff,1234567890
+NBD-20260613-030402,2026-06-13 03:04,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,26.53,Completed,patient100_frame13_slice_1.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-031128,2026-06-13 03:11,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient075_frame01_slice_9.h5,Hospital Staff,1234567890
+NBD-20260613-033541,2026-06-13 03:35,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,26.53,Completed,patient084_frame10_slice_7.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-033904,2026-06-13 03:39,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,34.29,Completed,patient071_frame09_slice_4.h5,Hospital Staff,1234567890
+NBD-20260613-034959,2026-06-13 03:49,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,30.95,Completed,patient071_frame01_slice_1.h5,Administrator,1234567890
+NBD-20260613-035926,2026-06-13 03:59,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,29.55,Completed,patient064_frame12_slice_5.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040800,2026-06-13 04:08,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,34.29,Completed,patient006_frame01_slice_10.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040823,2026-06-13 04:08,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient006_frame01_slice_8.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040840,2026-06-13 04:08,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient006_frame01_slice_7.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040855,2026-06-13 04:08,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient006_frame01_slice_6.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040926,2026-06-13 04:09,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient006_frame01_slice_5.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040941,2026-06-13 04:09,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,42.86,Completed,patient006_frame01_slice_4.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-040957,2026-06-13 04:09,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,36.36,Completed,patient006_frame01_slice_3.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041010,2026-06-13 04:10,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,36.36,Completed,patient006_frame01_slice_2.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041025,2026-06-13 04:10,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient006_frame01_slice_1.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041045,2026-06-13 04:10,NOR,Normal,طبيعي,20.0,Completed,patient006_frame01_slice_0.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041113,2026-06-13 04:11,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient005_frame13_slice_9.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041130,2026-06-13 04:11,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient005_frame13_slice_8.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041151,2026-06-13 04:11,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient005_frame13_slice_7.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041207,2026-06-13 04:12,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient005_frame13_slice_6.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-041222,2026-06-13 04:12,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,37.5,Completed,patient005_frame13_slice_4.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-054745,2026-06-13 05:47,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,38.24,Completed,patient094_frame01_slice_5.h5,Hospital Staff,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062153,2026-06-13 06:21,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,87.09,Completed,patient094_frame01_slice_5.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062303,2026-06-13 06:23,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,86.8,Completed,patient099_frame09_slice_9.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062352,2026-06-13 06:23,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,26.46,Completed,patient096_frame01_slice_11.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062655,2026-06-13 06:26,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,63.67,Completed,patient014_frame13_slice_0.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062723,2026-06-13 06:27,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,45.09,Completed,patient028_frame01_slice_0.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062756,2026-06-13 06:27,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,82.3,Completed,patient064_frame12_slice_9.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-062823,2026-06-13 06:28,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,87.19,Completed,patient096_frame01_slice_15.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-063800,2026-06-13 06:38,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,84.5,Completed,patient094_frame01_slice_0.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-063956,2026-06-13 06:39,DCM,Dilated Cardiomyopathy,اعتلال عضلة القلب التوسعي,75.3,Completed,patient095_frame12_slice_12.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064329,2026-06-13 06:43,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,75.94,Completed,patient082_frame07_slice_0.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064350,2026-06-13 06:43,MINF,Myocardial Infarction,احتشاء عضلة القلب,42.07,Completed,patient071_frame01_slice_8.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064427,2026-06-13 06:44,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,79.87,Completed,patient081_frame01_slice_1.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064456,2026-06-13 06:44,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,85.76,Completed,patient086_frame01_slice_6.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064530,2026-06-13 06:45,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,65.42,Completed,patient100_frame13_slice_6.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064553,2026-06-13 06:45,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,87.19,Completed,patient094_frame07_slice_4.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064623,2026-06-13 06:46,DCM,Dilated Cardiomyopathy,اعتلال عضلة القلب التوسعي,77.26,Completed,patient063_frame16_slice_6.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064646,2026-06-13 06:46,ARV,Abnormal Right Ventricle,خلل البطين الأيمن,85.86,Completed,patient092_frame01_slice_9.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064707,2026-06-13 06:47,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,72.94,Completed,patient056_frame01_slice_7.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-064854,2026-06-13 06:48,DCM,Dilated Cardiomyopathy,اعتلال عضلة القلب التوسعي,75.43,Completed,patient039_frame10_slice_8.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-065221,2026-06-13 06:52,HCM,Hypertrophic Cardiomyopathy,اعتلال عضلة القلب التضخمي,59.15,Completed,patient077_frame01_slice_4.h5,Administrator,١٢٣٤٥٦٧٨٩٠
+NBD-20260613-065307,2026-06-13 06:53,DCM,Dilated Cardiomyopathy,اعتلال عضلة القلب التوسعي,77.39,Completed,patient076_frame12_slice_6.h5,Administrator,١٢٣٤٥٦٧٨٩٠

@@ -1,18 +1,31 @@
 import io
+import os
+import csv
+import base64
+from pathlib import Path
 from datetime import datetime
 
 import streamlit as st
 import pandas as pd
 import numpy as np
+import joblib
 import h5py
 import cv2
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
-import arabic_reshaper
 
+try:
+    import arabic_reshaper
+except Exception:
+    arabic_reshaper = None
 
 try:
     from bidi.algorithm import get_display
+except Exception:
+    def get_display(value):
+        return value
+
+try:
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.lib import colors
@@ -39,7 +52,7 @@ st.set_page_config(
 # =====================================================
 PAGES = [
     "home", "about", "dashboard", "upload", "segmentation",
-    "features", "prediction", "report", "federated", "help", "settings"
+    "features", "prediction", "report", "history", "federated", "help", "settings"
 ]
 
 if "page" not in st.session_state:
@@ -47,6 +60,18 @@ if "page" not in st.session_state:
 
 if "language" not in st.session_state:
     st.session_state.language = "English"
+
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+if "user_role" not in st.session_state:
+    st.session_state.user_role = ""
+
+if "user_id" not in st.session_state:
+    st.session_state.user_id = ""
+
+if "user_display_name" not in st.session_state:
+    st.session_state.user_display_name = ""
 
 # =====================================================
 # TEXT DICTIONARY
@@ -68,6 +93,36 @@ TEXT = {
         "help": "Help",
         "settings": "Settings",
         "language": "Language",
+        "secure_access": "Secure Access",
+        "secure_access_title": "Nabdh AI Secure Access",
+        "secure_access_subtitle": "Protected Medical AI Research Portal",
+        "secure_access_text": "This academic access layer simulates identity verification for authorized hospital and research users before accessing MRI analysis and reports.",
+        "national_id": "National ID",
+        "password": "Password",
+        "otp": "Verification Code",
+        "role": "User Role",
+        "hospital_staff": "Hospital Staff",
+        "administrator": "Administrator",
+        "sign_in": "Sign In",
+        "sign_out": "Sign Out",
+        "access_granted": "Access granted successfully.",
+        "access_denied": "Please enter National ID, password, and the verification code 123456.",
+        "demo_otp": "Demo verification code: 123456",
+        "secured_by": "Secure Access Simulation inspired by national digital identity workflows.",
+        "current_user": "Current User",
+        "access_level": "Access Level",
+        "history": "Analysis History",
+        "history_title": "MRI Analysis History",
+        "history_empty": "No MRI analyses have been saved yet.",
+        "history_total_cases": "Total Cases",
+        "history_disease_types": "Disease Types",
+        "history_avg_confidence": "Average Confidence",
+        "history_table": "Saved Analysis Records",
+        "history_note": "Each completed prediction is saved locally in analysis_history.csv.",
+        "case_id": "Case ID",
+        "date": "Date",
+        "status": "Status",
+        "completed": "Completed",
         "hero_title": "AI-Powered Cardiac MRI Diagnosis",
         "hero_text": "A professional medical AI research platform for cardiac MRI visualization, DeepLab-based segmentation, scientific feature extraction, and automated disease prediction within a federated learning framework.",
         "start": "Start Diagnosis",
@@ -82,7 +137,6 @@ TEXT = {
         "recent": "Recent MRI Analyses",
         "upload_title": "Upload Cardiac MRI",
         "upload_text": "Upload a cardiac MRI file to visualize the original image and segmentation mask.",
-        "select_file": "Select cardiac MRI file",
         "original": "Original MRI",
         "mask": "Segmentation Mask",
         "overlay": "Overlay View",
@@ -100,12 +154,6 @@ TEXT = {
         "vision": "Vision",
         "mission": "Mission",
         "objectives": "Objectives",
-        "vision_text": "To provide a privacy-preserving intelligent cardiac diagnosis platform that supports collaborative medical AI research.",
-        "mission_text": "Nabdh AI integrates federated learning, cardiac MRI segmentation, feature extraction, and disease prediction to support research in automated cardiac disease diagnosis.",
-        "objective_1": "Visualize cardiac MRI data and segmentation masks.",
-        "objective_2": "Extract scientific cardiac features from RV, MYO, and LV regions.",
-        "objective_3": "Provide feature-based disease prediction and structured clinical reporting.",
-        "objective_4": "Represent a federated hospital collaboration framework without sharing raw patient data.",
         "university": "Imam Mohammad Ibn Saud Islamic University",
         "college": "College of Computer and Information Sciences",
         "department": "Department of Computer Science",
@@ -116,24 +164,13 @@ TEXT = {
         "feature_based_prediction": "Feature-based prediction",
         "predicted_interpretation": "Predicted Disease Interpretation",
         "probability_distribution": "Disease Probability Distribution",
-        "final_prediction_summary": "Final Prediction Summary",
-        "prediction_basis": "Prediction based on extracted cardiac features",
-        "download_pdf": "Download ",
-        "print_report": "Print",
-        "uploaded_mri_usage": "The uploaded MRI will be used for segmentation, feature extraction, prediction, and clinical reporting.",
-        "segmentation_desc": "This page visualizes the cardiac segmentation output and separates the main cardiac structures: right ventricle, myocardium, and left ventricle.",
-        "segmentation_quality": "Segmentation Quality",
-        "clinical_interpretation": "Clinical Interpretation",
-        "segmentation_success": "Segmentation completed successfully. The output is ready for feature extraction.",
-        "feature_success": "Feature extraction completed successfully. The extracted features are ready for disease prediction.",
-        "footer_platform": "Federated AI Cardiac Diagnosis Platform",
     },
     "العربية": {
-        "brand": "منصة نبض",
+        "brand": "نبض AI",
         "subtitle": "منصة ذكية لتشخيص أمراض القلب",
         "ai_system": "نظام ذكاء اصطناعي للقلب",
         "home": "الرئيسية",
-        "about": "عن نبض ",
+        "about": "عن نبض AI",
         "dashboard": "لوحة التحكم",
         "upload": "رفع الرنين",
         "segmentation": "التجزئة",
@@ -144,6 +181,36 @@ TEXT = {
         "help": "المساعدة",
         "settings": "الإعدادات",
         "language": "اللغة",
+        "secure_access": "الدخول الآمن",
+        "secure_access_title": "الدخول الآمن لمنصة نبض",
+        "secure_access_subtitle": "بوابة بحثية طبية محمية",
+        "secure_access_text": "تحاكي هذه الطبقة الأكاديمية التحقق من الهوية للمستخدمين المصرح لهم من المستشفى أو البحث قبل الوصول إلى تحليل صور الرنين والتقارير.",
+        "national_id": "رقم الهوية",
+        "password": "كلمة المرور",
+        "otp": "رمز التحقق",
+        "role": "دور المستخدم",
+        "hospital_staff": "موظف مستشفى",
+        "administrator": "مدير النظام",
+        "sign_in": "تسجيل الدخول",
+        "sign_out": "تسجيل الخروج",
+        "access_granted": "تم تسجيل الدخول بنجاح.",
+        "access_denied": "يرجى إدخال رقم الهوية وكلمة المرور ورمز التحقق 123456.",
+        "demo_otp": "رمز التحقق التجريبي: 123456",
+        "secured_by": "محاكاة دخول آمن مستوحاة من إجراءات الهوية الرقمية الوطنية.",
+        "current_user": "المستخدم الحالي",
+        "access_level": "مستوى الوصول",
+        "history": "سجل التحليلات",
+        "history_title": "سجل تحليلات الرنين المغناطيسي",
+        "history_empty": "لا توجد تحليلات محفوظة حتى الآن.",
+        "history_total_cases": "إجمالي الحالات",
+        "history_disease_types": "أنواع الأمراض",
+        "history_avg_confidence": "متوسط الثقة",
+        "history_table": "سجلات التحليل المحفوظة",
+        "history_note": "يتم حفظ كل تنبؤ مكتمل محليًا في ملف analysis_history.csv.",
+        "case_id": "رقم الحالة",
+        "date": "التاريخ",
+        "status": "الحالة",
+        "completed": "مكتمل",
         "hero_title": "تشخيص أمراض القلب من صور الرنين باستخدام الذكاء الاصطناعي",
         "hero_text": "منصة بحثية طبية احترافية لعرض صور الرنين المغناطيسي للقلب، وتنفيذ التجزئة بنموذج DeepLab، واستخراج الخصائص العلمية، والتنبؤ بالمرض ضمن إطار التعلم الموحد.",
         "start": "ابدأ التشخيص",
@@ -158,7 +225,6 @@ TEXT = {
         "recent": "آخر تحليلات الرنين",
         "upload_title": "رفع صورة الرنين المغناطيسي للقلب",
         "upload_text": "ارفعي ملف الرنين المغناطيسي للقلب لعرض الصورة الأصلية وقناع التجزئة.",
-        "select_file": "اختيار ملف الرنين المغناطيسي للقلب",
         "original": "صورة الرنين الأصلية",
         "mask": "قناع التجزئة",
         "overlay": "العرض المدمج",
@@ -170,39 +236,22 @@ TEXT = {
         "model": "النموذج",
         "recommendation": "التوصية",
         "recommendation_text": "ينبغي مراجعة الحالة من قبل طبيب قلب مختص للتأكيد السريري.",
-        "download_report": " تنزيل ",
+        "download_report": "تنزيل التقرير الرسمي PDF",
         "share_link": "رابط المشاركة",
         "print_note": "افتحي ملف PDF بعد تنزيله واطبعيه من Preview أو المتصفح.",
         "vision": "الرؤية",
         "mission": "الرسالة",
         "objectives": "الأهداف",
-        "vision_text": "تقديم منصة ذكية محافظة على خصوصية البيانات لدعم تشخيص أمراض القلب والبحث الطبي التعاوني باستخدام الذكاء الاصطناعي.",
-        "mission_text": "تدمج منصة نبض التعلم الموحد، وتجزئة صور الرنين المغناطيسي للقلب، واستخراج الخصائص، والتنبؤ بالمرض لدعم البحث في التشخيص الآلي لأمراض القلب.",
-        "objective_1": "عرض صور الرنين المغناطيسي للقلب وأقنعة التجزئة.",
-        "objective_2": "استخراج خصائص قلبية علمية من مناطق البطين الأيمن وعضلة القلب والبطين الأيسر.",
-        "objective_3": "تقديم تنبؤ مبني على الخصائص مع تقرير سريري منظم.",
-        "objective_4": "تمثيل إطار تعاون بين المستشفيات باستخدام التعلم الموحد دون مشاركة بيانات المرضى الخام.",
         "university": "جامعة الإمام محمد بن سعود الإسلامية",
         "college": "كلية علوم الحاسب والمعلومات",
         "department": "قسم علوم الحاسب",
         "notice": "نموذج بحثي أولي، ولا يستخدم للتشخيص السريري المباشر دون مراجعة المختص.",
         "final_prediction": "التنبؤ النهائي",
-        "official_pdf_ready": "التقرير الرسمي جاهز نوع الملف PDF",
+        "official_pdf_ready": "التقرير الرسمي PDF جاهز.",
         "clinical_review": "مراجعة سريرية",
         "feature_based_prediction": "تنبؤ مبني على الخصائص",
         "predicted_interpretation": "تفسير التنبؤ بالمرض",
         "probability_distribution": "توزيع درجات التصنيف",
-        "final_prediction_summary": "ملخص التنبؤ النهائي",
-        "prediction_basis": "تم تحديد المرض المتوقع بناءً على الخصائص القلبية المستخرجة",
-        "download_pdf": "تنزيل ",
-        "print_report": "طباعة",
-        "uploaded_mri_usage": "سيتم استخدام صورة الرنين في التجزئة، واستخراج الخصائص، والتنبؤ، وإعداد التقرير السريري.",
-        "segmentation_desc": "تعرض هذه الصفحة نتيجة تجزئة القلب وتوضح التراكيب الأساسية: البطين الأيمن، عضلة القلب، والبطين الأيسر.",
-        "segmentation_quality": "جودة التجزئة",
-        "clinical_interpretation": "التفسير السريري",
-        "segmentation_success": "تمت التجزئة بنجاح، والمخرجات جاهزة لاستخراج الخصائص.",
-        "feature_success": "تم استخراج الخصائص بنجاح، وأصبحت جاهزة للتنبؤ بالمرض.",
-        "footer_platform": "منصة تشخيص أمراض القلب بالذكاء الاصطناعي والتعلم الموحد",
     }
 }
 
@@ -213,6 +262,38 @@ t = TEXT[st.session_state.language]
 is_ar = st.session_state.language == "العربية"
 direction = "rtl" if is_ar else "ltr"
 align = "right" if is_ar else "left"
+
+# =====================================================
+# LOGO CONFIGURATION
+# =====================================================
+LOGO_PATHS = [
+    Path("assets/nabdh_logo.png"),
+    Path("nabdh_logo.png"),
+    Path("/mnt/data/assets/nabdh_logo.png"),
+    Path("/mnt/data/ChatGPT Image Jun 10, 2026 at 11_31_51 PM.png"),
+]
+
+def get_logo_path():
+    for logo_path in LOGO_PATHS:
+        try:
+            if logo_path.exists():
+                return logo_path
+        except Exception:
+            continue
+    return None
+
+def get_logo_base64():
+    logo_path = get_logo_path()
+    if logo_path is None:
+        return ""
+    try:
+        return base64.b64encode(logo_path.read_bytes()).decode("utf-8")
+    except Exception:
+        return ""
+
+LOGO_BASE64 = get_logo_base64()
+LOGO_SRC = f"data:image/png;base64,{LOGO_BASE64}" if LOGO_BASE64 else ""
+
 
 # =====================================================
 # DISEASE MAPS
@@ -415,63 +496,6 @@ st.markdown(
         line-height: 1.8;
     }}
 
-
-
-    /* File uploader alignment and display labels */
-    [data-testid="stFileUploader"] {{
-        direction: {direction};
-        text-align: {align};
-    }}
-    [data-testid="stFileUploaderDropzone"] {{
-        direction: {direction};
-    }}
-    [data-testid="stFileUploaderDropzone"] button {{
-        float: {"left" if is_ar else "right"};
-    }}
-    [data-testid="stFileUploaderDropzone"] button p {{
-        font-size: 0 !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] button p::after {{
-        content: "{'تصفح الملفات' if is_ar else 'Browse files'}";
-        font-size: 16px !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] [data-testid="stFileUploaderDropzoneInstructions"] span {{
-        font-size: 0 !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] [data-testid="stFileUploaderDropzoneInstructions"] span::after {{
-        content: "{'اسحبي الملف هنا' if is_ar else 'Drag and drop file here'}";
-        font-size: 16px !important;
-    }}
-
-    /* Report actions: clean link-style controls */
-    [data-testid="stDownloadButton"] button {{
-        background: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        color: #0B3B75 !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-        text-decoration: underline !important;
-        padding: 0 !important;
-        min-height: 44px !important;
-    }}
-
-    @media print {{
-        header, [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{
-            display: none !important;
-        }}
-        .nav-shell {{
-            display: none !important;
-        }}
-        .block-container {{
-            max-width: 100% !important;
-            padding: 0.5cm !important;
-        }}
-        .footer {{
-            page-break-inside: avoid;
-        }}
-    }}
-
     .seal {{
         width: 170px;
         height: 170px;
@@ -487,6 +511,838 @@ st.markdown(
         margin: auto;
         background: #EAF4FF;
     }}
+
+    /* Secure Access Page - Creative Medical Login */
+    .secure-page {{
+        direction: {direction};
+        text-align: {align};
+    }}
+
+    .secure-wrapper {{
+        min-height: 86vh;
+        padding: 34px 18px;
+        border-radius: 34px;
+        background:
+            radial-gradient(circle at 10% 18%, rgba(30,136,229,0.18), transparent 30%),
+            radial-gradient(circle at 92% 12%, rgba(229,57,53,0.10), transparent 28%),
+            linear-gradient(135deg, #F7FBFF 0%, #EAF4FF 48%, #FFFFFF 100%);
+        overflow: hidden;
+    }}
+
+    .secure-login-shell {{
+        max-width: 1120px;
+        min-height: 625px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 0.95fr 1.05fr;
+        gap: 0;
+        border-radius: 36px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.97);
+        border: 1px solid #DDEAF7;
+        box-shadow: 0 28px 70px rgba(7,21,46,0.16);
+    }}
+
+    .secure-visual-panel {{
+        position: relative;
+        padding: 42px 38px;
+        background:
+            linear-gradient(150deg, rgba(7,21,46,0.96) 0%, rgba(11,59,117,0.98) 72%, rgba(30,136,229,0.92) 140%);
+        color: white;
+        min-height: 625px;
+        overflow: hidden;
+    }}
+
+    .secure-visual-panel::before {{
+        content: "";
+        position: absolute;
+        width: 380px;
+        height: 380px;
+        border-radius: 50%;
+        background: rgba(234,244,255,0.10);
+        top: -130px;
+        {"left" if is_ar else "right"}: -120px;
+    }}
+
+    .secure-visual-panel::after {{
+        content: "";
+        position: absolute;
+        width: 320px;
+        height: 95px;
+        background: rgba(255,255,255,0.12);
+        border-radius: 999px;
+        bottom: 70px;
+        {"right" if is_ar else "left"}: -80px;
+        transform: rotate(-12deg);
+    }}
+
+    .secure-brand-mark {{
+        position: relative;
+        z-index: 2;
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 30px;
+        font-weight: 950;
+        letter-spacing: -0.6px;
+    }}
+
+    .secure-brand-icon {{
+        width: 58px;
+        height: 58px;
+        border-radius: 20px;
+        background: rgba(234,244,255,0.16);
+        border: 1px solid rgba(234,244,255,0.34);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 30px;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+    }}
+
+    .secure-visual-content {{
+        position: relative;
+        z-index: 2;
+        margin-top: 74px;
+    }}
+
+    .secure-title {{
+        font-size: 42px;
+        font-weight: 950;
+        line-height: 1.25;
+        margin-bottom: 14px;
+    }}
+
+    .secure-subtitle {{
+        font-size: 19px;
+        color: #DCEBFF;
+        font-weight: 850;
+        margin-bottom: 14px;
+    }}
+
+    .secure-text {{
+        color: #EAF4FF;
+        line-height: 1.9;
+        font-size: 15px;
+        max-width: 430px;
+    }}
+
+    .secure-medical-illustration {{
+        position: relative;
+        z-index: 2;
+        margin-top: 46px;
+        width: 225px;
+        height: 225px;
+        border-radius: 54px;
+        background:
+            radial-gradient(circle at 50% 48%, #FFFFFF 0 28%, transparent 29%),
+            linear-gradient(135deg, rgba(234,244,255,0.22), rgba(255,255,255,0.06));
+        border: 1px solid rgba(234,244,255,0.28);
+        box-shadow: 0 22px 50px rgba(0,0,0,0.16);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 72px;
+    }}
+
+    .secure-medical-illustration::before {{
+        content: "";
+        position: absolute;
+        width: 210px;
+        height: 48px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.14);
+        transform: rotate(-14deg);
+    }}
+
+    .secure-medical-illustration span {{
+        position: relative;
+        z-index: 3;
+        filter: drop-shadow(0 10px 18px rgba(0,0,0,0.16));
+    }}
+
+    .secure-wave {{
+        position: relative;
+        z-index: 2;
+        margin-top: 34px;
+        height: 76px;
+        border-radius: 22px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(234,244,255,0.18);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        color: #EAF4FF;
+    }}
+
+    .secure-badge {{
+        position: relative;
+        z-index: 2;
+        display: inline-block;
+        margin-top: 18px;
+        background: rgba(234,244,255,0.14);
+        border: 1px solid rgba(234,244,255,0.35);
+        color: #EAF4FF;
+        padding: 10px 15px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 900;
+    }}
+
+    .secure-form-panel {{
+        padding: 48px 50px;
+        background:
+            radial-gradient(circle at 100% 0%, rgba(229,57,53,0.06), transparent 30%),
+            radial-gradient(circle at 0% 100%, rgba(30,136,229,0.08), transparent 34%),
+            #FFFFFF;
+        min-height: 625px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }}
+
+    .secure-form-heading {{
+        margin-bottom: 26px;
+    }}
+
+    .secure-form-heading h2 {{
+        margin: 0 0 8px 0;
+        color: #07152E;
+        font-size: 36px;
+        font-weight: 950;
+        letter-spacing: -0.5px;
+    }}
+
+    .secure-form-heading p {{
+        margin: 0;
+        color: #64748B;
+        font-size: 15px;
+        line-height: 1.8;
+    }}
+
+    .secure-role-strip {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin: 18px 0 22px 0;
+    }}
+
+    .secure-role-chip {{
+        border-radius: 17px;
+        padding: 12px 10px;
+        text-align: center;
+        font-weight: 900;
+        font-size: 13px;
+        color: #0B3B75;
+        background: #EAF4FF;
+        border: 1px solid #BFDFFF;
+    }}
+
+    .secure-form-card {{
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+    }}
+
+    .secure-demo-line {{
+        margin-top: 16px;
+        padding: 13px 15px;
+        border-radius: 16px;
+        background: #F8FBFF;
+        border: 1px dashed #9CCBFF;
+        color: #0B3B75;
+        font-weight: 900;
+        text-align: center;
+    }}
+
+    .secure-info-card {{
+        margin-top: 18px;
+        background: #F8FBFF;
+        border: 1px solid #DDEAF7;
+        border-radius: 22px;
+        padding: 18px 20px;
+        color: #07152E;
+        text-align: {align};
+    }}
+
+    .secure-info-card h3 {{
+        margin: 0 0 6px 0;
+        font-size: 18px;
+        font-weight: 950;
+    }}
+
+    .secure-info-card p {{
+        margin: 0;
+        color: #475569;
+        line-height: 1.8;
+    }}
+
+    .access-chip {{
+        display: inline-block;
+        margin-top: 8px;
+        background: #EAF4FF;
+        color: #0B3B75;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 900;
+    }}
+
+    .secure-page div[data-baseweb="select"],
+    .secure-page input {{
+        direction: {direction};
+        text-align: {align};
+    }}
+
+    .secure-page div[data-baseweb="select"] * {{
+        text-align: {align};
+    }}
+
+    .secure-page [data-testid="stForm"] {{
+        border: none;
+        padding: 0;
+    }}
+
+    .secure-page [data-testid="stFormSubmitButton"] button {{
+        background: #07152E !important;
+        color: white !important;
+        border: 1px solid #07152E !important;
+        border-radius: 999px !important;
+        min-height: 50px !important;
+        font-weight: 950 !important;
+        box-shadow: 0 12px 26px rgba(7,21,46,0.20) !important;
+    }}
+
+    .secure-page [data-testid="stFormSubmitButton"] button:hover {{
+        background: #0B3B75 !important;
+        border-color: #0B3B75 !important;
+    }}
+
+
+    /* =====================================================
+       Enhanced Secure Access Login - Inspired Creative UI
+       ===================================================== */
+    .secure-wrapper {{
+        min-height: 88vh;
+        padding: 42px 20px;
+        border-radius: 38px;
+        background:
+            radial-gradient(circle at 8% 14%, rgba(255,255,255,0.95), transparent 18%),
+            radial-gradient(circle at 88% 14%, rgba(255,255,255,0.28), transparent 22%),
+            linear-gradient(135deg, #07152E 0%, #0B3B75 36%, #1E88E5 72%, #EAF4FF 125%);
+        overflow: hidden;
+    }}
+
+    .secure-login-shell {{
+        max-width: 1180px;
+        min-height: 660px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 1.02fr 0.98fr;
+        gap: 0;
+        border-radius: 42px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.96);
+        border: 1px solid rgba(255,255,255,0.66);
+        box-shadow: 0 34px 90px rgba(7,21,46,0.28);
+        position: relative;
+    }}
+
+    .secure-login-shell::before {{
+        content: "";
+        position: absolute;
+        width: 430px;
+        height: 430px;
+        border-radius: 50%;
+        background: rgba(234,244,255,0.52);
+        top: -260px;
+        {"right" if is_ar else "left"}: -210px;
+        z-index: 1;
+    }}
+
+    .secure-visual-panel {{
+        position: relative;
+        padding: 46px 42px;
+        background:
+            linear-gradient(145deg, rgba(7,21,46,0.98) 0%, rgba(11,59,117,0.98) 58%, rgba(30,136,229,0.94) 130%);
+        color: white;
+        min-height: 660px;
+        overflow: hidden;
+    }}
+
+    .secure-visual-panel::before {{
+        content: "";
+        position: absolute;
+        width: 410px;
+        height: 410px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.10);
+        top: -150px;
+        {"left" if is_ar else "right"}: -120px;
+    }}
+
+    .secure-visual-panel::after {{
+        content: "";
+        position: absolute;
+        width: 470px;
+        height: 120px;
+        background: rgba(255,255,255,0.13);
+        border-radius: 999px;
+        bottom: 92px;
+        {"right" if is_ar else "left"}: -130px;
+        transform: rotate(-13deg);
+    }}
+
+    .secure-brand-mark {{
+        position: relative;
+        z-index: 3;
+        display: inline-flex;
+        align-items: center;
+        gap: 13px;
+        font-size: 31px;
+        font-weight: 950;
+        letter-spacing: -0.7px;
+    }}
+
+    .secure-brand-icon {{
+        width: 62px;
+        height: 62px;
+        border-radius: 23px;
+        background: rgba(255,255,255,0.17);
+        border: 1px solid rgba(255,255,255,0.36);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 31px;
+        box-shadow: 0 16px 32px rgba(0,0,0,0.14), inset 0 0 0 1px rgba(255,255,255,0.08);
+    }}
+
+    .secure-visual-content {{
+        position: relative;
+        z-index: 3;
+        margin-top: 70px;
+    }}
+
+    .secure-title {{
+        font-size: 48px;
+        font-weight: 950;
+        line-height: 1.12;
+        margin-bottom: 16px;
+        letter-spacing: -1.1px;
+    }}
+
+    .secure-subtitle {{
+        font-size: 20px;
+        color: #DCEBFF;
+        font-weight: 850;
+        margin-bottom: 15px;
+    }}
+
+    .secure-text {{
+        color: #EAF4FF;
+        line-height: 1.9;
+        font-size: 15.5px;
+        max-width: 470px;
+    }}
+
+    .secure-badge {{
+        position: relative;
+        z-index: 3;
+        display: inline-block;
+        margin-top: 20px;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.34);
+        color: #FFFFFF;
+        padding: 11px 16px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 900;
+        box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+    }}
+
+    .secure-medical-illustration {{
+        position: relative;
+        z-index: 3;
+        margin-top: 44px;
+        width: 235px;
+        height: 235px;
+        border-radius: 58px;
+        background:
+            radial-gradient(circle at 50% 48%, rgba(255,255,255,0.96) 0 27%, transparent 28%),
+            linear-gradient(135deg, rgba(255,255,255,0.24), rgba(255,255,255,0.07));
+        border: 1px solid rgba(255,255,255,0.30);
+        box-shadow: 0 25px 60px rgba(0,0,0,0.20);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 76px;
+    }}
+
+    .secure-medical-illustration::before {{
+        content: "";
+        position: absolute;
+        width: 230px;
+        height: 52px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.16);
+        transform: rotate(-14deg);
+    }}
+
+    .secure-medical-illustration::after {{
+        content: "";
+        position: absolute;
+        width: 88px;
+        height: 88px;
+        border-radius: 50%;
+        border: 1px dashed rgba(255,255,255,0.36);
+        top: 22px;
+        {"right" if is_ar else "left"}: 24px;
+    }}
+
+    .secure-orbit {{
+        position: absolute;
+        width: 420px;
+        height: 420px;
+        border-radius: 50%;
+        border: 1px solid rgba(234,244,255,0.20);
+        top: 105px;
+        right: -160px;
+        z-index: 1;
+    }}
+
+    .secure-orbit::before {{
+        content: "MRI";
+        position: absolute;
+        top: 18px;
+        {"right" if is_ar else "left"}: -16px;
+        width: 58px;
+        height: 58px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.16);
+        border: 1px solid rgba(255,255,255,0.30);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        font-weight: 950;
+        color: #FFFFFF;
+        box-shadow: 0 14px 28px rgba(0,0,0,0.13);
+    }}
+
+    .secure-wave {{
+        position: relative;
+        z-index: 3;
+        margin-top: 36px;
+        height: 78px;
+        border-radius: 25px;
+        background:
+            linear-gradient(90deg, rgba(255,255,255,0.10), rgba(255,255,255,0.18), rgba(255,255,255,0.08));
+        border: 1px solid rgba(255,255,255,0.22);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 950;
+        color: #FFFFFF;
+        letter-spacing: 0.3px;
+    }}
+
+    .secure-form-panel {{
+        position: relative;
+        z-index: 2;
+        padding: 54px 58px;
+        background:
+            radial-gradient(circle at 96% 4%, rgba(30,136,229,0.10), transparent 28%),
+            radial-gradient(circle at 8% 96%, rgba(11,59,117,0.08), transparent 30%),
+            #FFFFFF;
+        min-height: 660px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }}
+
+    .secure-form-panel::before {{
+        content: "";
+        position: absolute;
+        width: 245px;
+        height: 245px;
+        border-radius: 50%;
+        background: rgba(234,244,255,0.78);
+        top: -105px;
+        {"left" if is_ar else "right"}: -95px;
+        z-index: -1;
+    }}
+
+    .secure-form-heading {{
+        margin-bottom: 24px;
+    }}
+
+    .secure-form-heading h2 {{
+        margin: 0 0 9px 0;
+        color: #07152E;
+        font-size: 40px;
+        font-weight: 950;
+        letter-spacing: -0.8px;
+    }}
+
+    .secure-form-heading p {{
+        margin: 0;
+        color: #64748B;
+        font-size: 15px;
+        line-height: 1.8;
+        max-width: 450px;
+    }}
+
+    .secure-role-strip {{
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+        margin: 20px 0 24px 0;
+    }}
+
+    .secure-role-chip {{
+        border-radius: 18px;
+        padding: 12px 10px;
+        text-align: center;
+        font-weight: 900;
+        font-size: 13px;
+        color: #0B3B75;
+        background: linear-gradient(180deg, #F8FBFF 0%, #EAF4FF 100%);
+        border: 1px solid #BFDFFF;
+        box-shadow: 0 10px 22px rgba(30,136,229,0.08);
+    }}
+
+    .secure-form-mini-title {{ 
+        display: inline-block;
+        width: fit-content;
+        margin-bottom: 18px;
+        padding: 9px 16px;
+        border-radius: 999px;
+        background: #EAF4FF;
+        color: #0B3B75;
+        font-size: 13px;
+        font-weight: 950;
+        border: 1px solid #BFDFFF;
+}}
+
+    .secure-page [data-testid="stForm"] {{
+        border: none;
+        padding: 0;
+        background: transparent;
+    }}
+
+    .secure-page [data-testid="stTextInput"] input {{
+        border-radius: 999px !important;
+        min-height: 48px !important;
+        border: 1px solid #DDEAF7 !important;
+        background: #F8FBFF !important;
+        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5) !important;
+    }}
+
+    .secure-page div[data-baseweb="select"] > div {{
+        border-radius: 999px !important;
+        min-height: 48px !important;
+        background: #F8FBFF !important;
+        border-color: #DDEAF7 !important;
+    }}
+
+    .secure-page [data-testid="stFormSubmitButton"] button {{
+        background: linear-gradient(135deg, #07152E 0%, #0B3B75 100%) !important;
+        color: white !important;
+        border: 1px solid #07152E !important;
+        border-radius: 999px !important;
+        min-height: 52px !important;
+        font-weight: 950 !important;
+        box-shadow: 0 14px 30px rgba(7,21,46,0.24) !important;
+    }}
+
+    .secure-page [data-testid="stFormSubmitButton"] button:hover {{
+        background: linear-gradient(135deg, #0B3B75 0%, #1E88E5 100%) !important;
+        border-color: #0B3B75 !important;
+        transform: translateY(-1px);
+    }}
+
+    .secure-demo-line {{
+        margin-top: 17px;
+        padding: 13px 16px;
+        border-radius: 18px;
+        background: #F8FBFF;
+        border: 1px dashed #9CCBFF;
+        color: #0B3B75;
+        font-weight: 900;
+        text-align: center;
+    }}
+
+    .secure-info-card {{
+        margin-top: 18px;
+        background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+        border: 1px solid #DDEAF7;
+        border-radius: 24px;
+        padding: 18px 20px;
+        color: #07152E;
+        text-align: {align};
+        box-shadow: 0 14px 30px rgba(15,23,42,0.06);
+    }}
+
+    .secure-info-card h3 {{
+        margin: 0 0 7px 0;
+        font-size: 18px;
+        font-weight: 950;
+    }}
+
+    .secure-info-card p {{
+        margin: 0;
+        color: #475569;
+        line-height: 1.8;
+    }}
+
+    .secure-privacy-list {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+        margin-top: 14px;
+    }}
+
+    .secure-privacy-pill {{
+        background: #EAF4FF;
+        color: #0B3B75;
+        border: 1px solid #BFDFFF;
+        border-radius: 999px;
+        padding: 8px 10px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: 900;
+    }}
+
+
+    .secure-vertical-cards {{
+        position: absolute;
+        z-index: 4;
+        right: 36px;
+        bottom: 118px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+    }}
+
+    .secure-v-card {{
+        width: 82px;
+        height: 168px;
+        border-radius: 30px;
+        padding: 18px 10px;
+        color: #FFFFFF;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        text-align: center;
+        box-shadow: 0 24px 42px rgba(0,0,0,0.20);
+        border: 1px solid rgba(255,255,255,0.32);
+        backdrop-filter: blur(10px);
+    }}
+
+    .secure-v-card span {{
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(255,255,255,0.22);
+        font-size: 13px;
+        font-weight: 950;
+    }}
+
+    .secure-v-card strong {{
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        font-size: 14px;
+        letter-spacing: 0.5px;
+        font-weight: 950;
+    }}
+
+    .secure-v-blue {{
+        height: 185px;
+        background: linear-gradient(180deg, #9EDBFF 0%, #1E88E5 100%);
+    }}
+
+    .secure-v-green {{
+        height: 215px;
+        background: linear-gradient(180deg, #70E6B1 0%, #00A66C 100%);
+    }}
+
+    .secure-v-red {{
+        height: 175px;
+        background: linear-gradient(180deg, #FF8A8A 0%, #E53935 100%);
+    }}
+
+    @media (max-width: 900px) {{
+        .secure-login-shell {{
+            grid-template-columns: 1fr;
+        }}
+        .secure-visual-panel,
+        .secure-form-panel {{
+            min-height: auto;
+        }}
+        .secure-role-strip {{
+            grid-template-columns: 1fr;
+        }}
+    }}
+
+
+    .brand-logo-img {{
+        height: 76px;
+        width: auto;
+        display: block;
+        object-fit: contain;
+    }}
+
+    .secure-logo-img {{
+        width: 260px;
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+        filter: drop-shadow(0 18px 34px rgba(0,0,0,0.22));
+        border-radius: 22px;
+    }}
+
+    .secure-logo-card {{
+        position: relative;
+        z-index: 4;
+        width: 290px;
+        max-width: 100%;
+        padding: 18px;
+        border-radius: 30px;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid rgba(255,255,255,0.55);
+        box-shadow: 0 24px 54px rgba(0,0,0,0.18);
+    }}
+
+    .home-logo-wrap {{
+        display: flex;
+        justify-content: center;
+        margin: 8px 0 26px 0;
+    }}
+
+    .home-logo-img {{
+        width: 360px;
+        max-width: 100%;
+        height: auto;
+        border-radius: 28px;
+        filter: drop-shadow(0 18px 40px rgba(7,21,46,0.18));
+    }}
+
+    .about-logo-img {{
+        width: 230px;
+        max-width: 100%;
+        height: auto;
+        display: block;
+        margin: 0 auto 18px auto;
+    }}
+
     </style>
     """,
     unsafe_allow_html=True
@@ -515,6 +1371,100 @@ def stat_card(label: str, value: str, note: str = ""):
         """,
         unsafe_allow_html=True
     )
+
+
+def allowed_pages_by_role(role):
+    if role == "Hospital Staff" or role == "موظف مستشفى":
+        return ["home", "dashboard", "upload", "segmentation", "features", "prediction", "report"]
+
+    if role == "Administrator" or role == "مدير النظام":
+        return ["home", "dashboard", "upload", "segmentation", "features", "prediction", "report", "history", "federated"]
+
+    return ["home"]
+
+
+HISTORY_FILE = "analysis_history.csv"
+
+
+def generate_case_id():
+    return "NBD-" + datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def save_case_history(case_id, predicted, confidence, filename=""):
+    file_exists = Path(HISTORY_FILE).exists()
+    disease_en = DISEASE_FULL_NAME.get(predicted, predicted)
+    disease_ar = DISEASE_AR.get(predicted, predicted)
+
+    with open(HISTORY_FILE, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow([
+                "Case ID", "Date", "Disease Code", "Disease EN", "Disease AR",
+                "Confidence", "Status", "File", "User Role", "User ID"
+            ])
+        writer.writerow([
+            case_id,
+            datetime.now().strftime("%Y-%m-%d %H:%M"),
+            predicted,
+            disease_en,
+            disease_ar,
+            round(float(confidence), 2),
+            "Completed",
+            filename,
+            st.session_state.get("user_role", ""),
+            st.session_state.get("user_id", "")
+        ])
+
+
+def save_current_analysis_once(predicted, confidence):
+    current_signature = f"{st.session_state.get('uploaded_filename', '')}-{predicted}-{round(float(confidence), 2)}"
+
+    if st.session_state.get("last_saved_history_signature") == current_signature:
+        return
+
+    case_id = generate_case_id()
+    save_case_history(
+        case_id=case_id,
+        predicted=predicted,
+        confidence=confidence,
+        filename=st.session_state.get("uploaded_filename", "")
+    )
+    st.session_state.last_saved_history_signature = current_signature
+    st.session_state.last_case_id = case_id
+
+
+def load_history_dataframe(is_ar=False):
+    if not Path(HISTORY_FILE).exists():
+        return pd.DataFrame()
+
+    try:
+        df = pd.read_csv(HISTORY_FILE)
+    except pd.errors.ParserError:
+        df = pd.read_csv(HISTORY_FILE, engine="python", on_bad_lines="skip")
+
+    if df.empty:
+        return df
+
+    display_df = df.copy()
+
+    if is_ar:
+        display_df = display_df.rename(columns={
+            "Case ID": "رقم الحالة",
+            "Date": "التاريخ",
+            "Disease Code": "رمز المرض",
+            "Disease EN": "المرض بالإنجليزية",
+            "Disease AR": "المرض",
+            "Confidence": "درجة الثقة",
+            "Status": "الحالة",
+            "File": "الملف",
+            "User Role": "دور المستخدم",
+            "User ID": "رقم المستخدم"
+        })
+
+        if "الحالة" in display_df.columns:
+            display_df["الحالة"] = display_df["الحالة"].replace({"Completed": "مكتمل"})
+
+    return display_df
 
 
 def ecg_component():
@@ -617,7 +1567,6 @@ def rule_based_prediction_from_features(features):
     return predicted, confidence, probabilities
 
 
-
 def get_risk_level(predicted, confidence):
     if predicted == "NOR":
         return "Normal"
@@ -659,19 +1608,89 @@ def clinical_interpretation_text(predicted, features, lang="English"):
     return base + "The extracted indicators do not show a strong abnormal pattern according to the current research classification rules."
 
 
+# =====================================================
+# XGBOOST MODEL
+# =====================================================
+XGB_MODEL_PATH = Path("models/xgboost_model.pkl")
+
+@st.cache_resource
+def load_xgboost_bundle():
+    if XGB_MODEL_PATH.exists():
+        return joblib.load(XGB_MODEL_PATH)
+    return None
+
+XGB_BUNDLE = load_xgboost_bundle()
+
+if XGB_BUNDLE is not None:
+    XGB_MODEL = XGB_BUNDLE["model"]
+    XGB_LABEL_ENCODER = XGB_BUNDLE["label_encoder"]
+    FEATURE_COLUMNS = XGB_BUNDLE["feature_columns"]
+else:
+    XGB_MODEL = None
+    XGB_LABEL_ENCODER = None
+    FEATURE_COLUMNS = [
+        "num_slices",
+        "rv_volume_proxy",
+        "myo_volume_proxy",
+        "lv_volume_proxy",
+        "rv_area_mean",
+        "rv_area_max",
+        "myo_area_mean",
+        "myo_area_max",
+        "lv_area_mean",
+        "lv_area_max",
+        "rv_circularity_mean",
+        "myo_circularity_mean",
+        "lv_circularity_mean",
+        "myo_thickness_mean",
+        "myo_thickness_max",
+        "lv_rv_ratio",
+        "myo_lv_ratio",
+        "myo_rv_ratio",
+    ]
+
+
+def xgboost_prediction_from_features(features):
+    if XGB_MODEL is None or XGB_LABEL_ENCODER is None:
+        return rule_based_prediction_from_features(features)
+
+    row = {}
+    for col in FEATURE_COLUMNS:
+        row[col] = float(features.get(col, 0))
+
+    X_input = pd.DataFrame([row], columns=FEATURE_COLUMNS)
+
+    probs = XGB_MODEL.predict_proba(X_input)[0]
+    pred_index = int(np.argmax(probs))
+
+    predicted = XGB_LABEL_ENCODER.inverse_transform([pred_index])[0]
+    confidence = float(probs[pred_index] * 100)
+
+    class_names = XGB_LABEL_ENCODER.classes_
+
+    probabilities = {
+        str(cls): float(prob)
+        for cls, prob in zip(class_names, probs)
+    }
+
+    return str(predicted), confidence, probabilities
 def ensure_prediction():
     if "image" not in st.session_state or "mask" not in st.session_state:
         return None, None, None, None
+
     image = st.session_state.image
     mask = st.session_state.mask
+
     features = extract_prediction_features(image, mask)
-    predicted, confidence, probabilities = rule_based_prediction_from_features(features)
+
+    predicted, confidence, probabilities = xgboost_prediction_from_features(features)
+
     st.session_state.extracted_features = features
     st.session_state.predicted_disease = predicted
     st.session_state.prediction_confidence = confidence
     st.session_state.prediction_probabilities = probabilities
-    return features, predicted, confidence, probabilities
 
+    return features, predicted, confidence, probabilities
 
 def create_overlay(image, mask):
     rv_mask = (mask == 1)
@@ -707,6 +1726,52 @@ def report_feature_table(features):
     })
 
 
+
+# =====================================================
+# PDF REPORT HELPERS - ARABIC READY
+# =====================================================
+ARABIC_FONT_PATHS = [
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/Library/Fonts/Arial Unicode.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+]
+
+def setup_pdf_fonts():
+    if colors is None:
+        return "Helvetica"
+
+    for font_path in ARABIC_FONT_PATHS:
+        try:
+            if Path(font_path).exists():
+                pdfmetrics.registerFont(TTFont("ArabicFont", font_path))
+                return "ArabicFont"
+        except Exception:
+            continue
+
+    return "Helvetica"
+
+
+def ar_text(text):
+    if text is None:
+        return ""
+
+    text = str(text)
+    try:
+        if arabic_reshaper is not None:
+            text = arabic_reshaper.reshape(text)
+        return get_display(text)
+    except Exception:
+        return str(text)
+
+
+def to_arabic_digits(text):
+    western = "0123456789"
+    eastern = "٠١٢٣٤٥٦٧٨٩"
+    return str(text).translate(str.maketrans(western, eastern))
+
+
 def build_pdf_report(features, predicted, confidence, probabilities, lang="English"):
     if colors is None:
         return None
@@ -736,12 +1801,9 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     pdf_font = setup_pdf_fonts() if is_pdf_ar else "Helvetica"
     pdf_bold_font = pdf_font if is_pdf_ar else "Helvetica-Bold"
 
-    def pdf_txt(x):
-        return ar_text(x) if is_pdf_ar else str(x)
-
-    def pdf_num(x):
-        txt = str(x)
-        return to_arabic_digits(txt) if is_pdf_ar else txt
+    def pdf_num(value):
+        text_value = str(value)
+        return to_arabic_digits(text_value) if is_pdf_ar else text_value
 
     def ptxt(text_value, style):
         text_value = "" if text_value is None else str(text_value)
@@ -754,11 +1816,9 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
                 .replace("<b>", "")
                 .replace("</b>", "")
             )
-
             lines = text_value.split("\n")
             fixed_lines = [ar_text(line) for line in lines]
             final_text = "<br/>".join(fixed_lines)
-
             return Paragraph(final_text, style)
 
         return Paragraph(text_value.replace("\n", "<br/>"), style)
@@ -793,13 +1853,7 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
         fontSize=8.5, textColor=PRIMARY_BLUE, leading=12, alignment=1
     )
 
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    if is_pdf_ar:
-        now = to_arabic_digits(now)
-
     report_id = f"NABDH-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-
     if is_pdf_ar:
         report_id = to_arabic_digits(report_id)
 
@@ -811,7 +1865,6 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
         "college": "كلية علوم الحاسب والمعلومات" if is_pdf_ar else "College of Computer and Information Sciences",
         "department": "قسم علوم الحاسب" if is_pdf_ar else "Department of Computer Science",
         "report_id": "رقم التقرير" if is_pdf_ar else "Report ID",
-        "generated": "تاريخ الإنشاء" if is_pdf_ar else "Generated",
         "predicted": "المرض المتوقع" if is_pdf_ar else "Predicted Disease",
         "confidence": "درجة الثقة" if is_pdf_ar else "Confidence Score",
         "risk": "مستوى الخطورة" if is_pdf_ar else "Risk Level",
@@ -839,13 +1892,28 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
         pdf_labels["high"] if confidence >= 70 else pdf_labels["moderate"]
     )
     disease_name = DISEASE_AR.get(predicted, predicted) if is_pdf_ar else DISEASE_FULL_NAME.get(predicted, predicted)
+    disease_display = disease_name if is_pdf_ar else predicted
+    confidence_display = f"{confidence:.2f}%"
+    if is_pdf_ar:
+        confidence_display = to_arabic_digits(confidence_display)
+
     risk_color = ACCENT_RED if confidence >= 70 else PRIMARY_BLUE
     risk_bg = SOFT_RED if confidence >= 70 else LIGHT_BLUE
 
     elements = []
 
-    institution_text = f"{pdf_labels['platform']}\n{pdf_labels['university']}\n{pdf_labels['college']}\n{pdf_labels['department']}".replace("\n", "<br/>")
-    report_info_text = f"{report_id} :{pdf_labels['report_id']}" if is_pdf_ar else f"{pdf_labels['report_id']}: {report_id}"
+    institution_text = (
+        f"{pdf_labels['platform']}\n"
+        f"{pdf_labels['university']}\n"
+        f"{pdf_labels['college']}\n"
+        f"{pdf_labels['department']}"
+    ).replace("\n", "<br/>")
+
+    report_info_text = (
+        f"{report_id} :{pdf_labels['report_id']}"
+        if is_pdf_ar else
+        f"{pdf_labels['report_id']}: {report_id}"
+    )
 
     if is_pdf_ar:
         header_data = [
@@ -888,26 +1956,24 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     elements.append(header)
     elements.append(Spacer(1, 0.35 * cm))
 
-    disease_display = disease_name if is_pdf_ar else predicted
-    confidence_display = f"{confidence:.2f}%"
     if is_pdf_ar:
-        confidence_display = to_arabic_digits(confidence_display)
         summary_data = [
             [ptxt(pdf_labels["risk"], normal), ptxt(pdf_labels["confidence"], normal), ptxt(pdf_labels["predicted"], normal)],
-            [ptxt(f"{risk}", normal), ptxt(confidence_display, normal), ptxt(f"{disease_display}", normal)]
+            [ptxt(risk, normal), ptxt(confidence_display, normal), ptxt(disease_display, normal)]
         ]
     else:
         summary_data = [
             [ptxt(pdf_labels["predicted"], normal), ptxt(pdf_labels["confidence"], normal), ptxt(pdf_labels["risk"], normal)],
-            [ptxt(f"{disease_display}", normal), ptxt(confidence_display, normal), ptxt(f"{risk}", normal)]
+            [ptxt(disease_display, normal), ptxt(confidence_display, normal), ptxt(risk, normal)]
         ]
 
     summary = Table(summary_data, colWidths=[6.0 * cm, 5.6 * cm, 5.6 * cm])
+    risk_col = 0 if is_pdf_ar else 2
     summary.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), LIGHT_BLUE),
         ("BACKGROUND", (0, 1), (-1, 1), colors.white),
-        ("BACKGROUND", (0 if is_pdf_ar else 2, 1), (0 if is_pdf_ar else 2, 1), risk_bg),
-        ("TEXTCOLOR", (0 if is_pdf_ar else 2, 1), (0 if is_pdf_ar else 2, 1), risk_color),
+        ("BACKGROUND", (risk_col, 1), (risk_col, 1), risk_bg),
+        ("TEXTCOLOR", (risk_col, 1), (risk_col, 1), risk_color),
         ("BOX", (0, 0), (-1, -1), 1, BORDER),
         ("INNERGRID", (0, 0), (-1, -1), 0.5, BORDER),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
@@ -920,19 +1986,11 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
 
     elements.append(ptxt(pdf_labels["framework_summary"], h_style))
     framework = Table([
-        [ptxt("Federated DeepLab + Feature-Based Prediction", normal),
-        ptxt(pdf_labels["framework"], normal)],
-
-        [ptxt("XGBoost-ready Feature Classifier", normal),
-        ptxt(pdf_labels["model"], normal)],
-
-        [ptxt("ACDC Cardiac MRI", normal),
-        ptxt(pdf_labels["dataset"], normal)],
-
-        [ptxt("RV, MYO, LV cardiac structures", normal),
-        ptxt(pdf_labels["seg_output"], normal)],
-    ],
-    colWidths=[12.4 * cm, 4.8 * cm])
+        [ptxt("Federated DeepLab + Feature-Based Prediction", normal), ptxt(pdf_labels["framework"], normal)],
+        [ptxt("XGBoost-ready Feature Classifier", normal), ptxt(pdf_labels["model"], normal)],
+        [ptxt("ACDC Cardiac MRI", normal), ptxt(pdf_labels["dataset"], normal)],
+        [ptxt("RV, MYO, LV cardiac structures", normal), ptxt(pdf_labels["seg_output"], normal)],
+    ], colWidths=[12.4 * cm, 4.8 * cm])
     framework.setStyle(TableStyle([
         ("BACKGROUND", (1 if is_pdf_ar else 0, 0), (1 if is_pdf_ar else 0, -1), LIGHT_BLUE),
         ("BOX", (0, 0), (-1, -1), 1, BORDER),
@@ -947,19 +2005,31 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     elements.append(framework)
 
     elements.append(ptxt(pdf_labels["seg_summary"], h_style))
-    seg_headers = ["حجم البطين الأيمن" if is_pdf_ar else "RV Volume Proxy",
-                   "حجم عضلة القلب" if is_pdf_ar else "MYO Volume Proxy",
-                   "حجم البطين الأيسر" if is_pdf_ar else "LV Volume Proxy"]
+    seg_headers = [
+        "حجم البطين الأيمن" if is_pdf_ar else "RV Volume Proxy",
+        "حجم عضلة القلب" if is_pdf_ar else "MYO Volume Proxy",
+        "حجم البطين الأيسر" if is_pdf_ar else "LV Volume Proxy"
+    ]
+
     if is_pdf_ar:
         seg_table_data = [
             [ptxt(seg_headers[2], normal), ptxt(seg_headers[1], normal), ptxt(seg_headers[0], normal)],
-            [ptxt(pdf_num(features["lv_volume_proxy"]), normal), ptxt(pdf_num(features["myo_volume_proxy"]), normal), ptxt(pdf_num(features["rv_volume_proxy"]), normal)]
+            [
+                ptxt(pdf_num(features["lv_volume_proxy"]), normal),
+                ptxt(pdf_num(features["myo_volume_proxy"]), normal),
+                ptxt(pdf_num(features["rv_volume_proxy"]), normal)
+            ]
         ]
     else:
         seg_table_data = [
             [ptxt(seg_headers[0], normal), ptxt(seg_headers[1], normal), ptxt(seg_headers[2], normal)],
-            [ptxt(pdf_num(features["rv_volume_proxy"]), normal), ptxt(pdf_num(features["myo_volume_proxy"]), normal), ptxt(pdf_num(features["lv_volume_proxy"]), normal)]
+            [
+                ptxt(pdf_num(features["rv_volume_proxy"]), normal),
+                ptxt(pdf_num(features["myo_volume_proxy"]), normal),
+                ptxt(pdf_num(features["lv_volume_proxy"]), normal)
+            ]
         ]
+
     seg_table = Table(seg_table_data, colWidths=[5.75 * cm, 5.75 * cm, 5.75 * cm])
     seg_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), LIGHT_BLUE),
@@ -1012,6 +2082,7 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
         "MYO/LV Ratio": "نسبة عضلة القلب إلى البطين الأيسر",
         "MYO/RV Ratio": "نسبة عضلة القلب إلى البطين الأيمن",
     }
+
     if is_pdf_ar:
         feature_rows = [[ptxt(pdf_labels["value"], normal), ptxt(pdf_labels["feature"], normal)]]
     else:
@@ -1025,7 +2096,10 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
         else:
             feature_rows.append([ptxt(feature_name, normal), ptxt(feature_value, normal)])
 
-    feature_table = Table(feature_rows, colWidths=[5.7 * cm, 11.5 * cm] if is_pdf_ar else [11.5 * cm, 5.7 * cm])
+    feature_table = Table(
+        feature_rows,
+        colWidths=[5.7 * cm, 11.5 * cm] if is_pdf_ar else [11.5 * cm, 5.7 * cm]
+    )
     feature_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), PRIMARY_BLUE),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -1039,7 +2113,11 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     elements.append(feature_table)
 
     elements.append(ptxt(pdf_labels["recommendation"], h_style))
-    recommendation_text_pdf = "ينبغي مراجعة الحالة من قبل طبيب قلب مختص للتأكيد السريري." if is_pdf_ar else "The case should be reviewed by a cardiology specialist for clinical confirmation."
+    recommendation_text_pdf = (
+        "ينبغي مراجعة الحالة من قبل طبيب قلب مختص للتأكيد السريري."
+        if is_pdf_ar else
+        "The case should be reviewed by a cardiology specialist for clinical confirmation."
+    )
     recommendation = Table([[ptxt(recommendation_text_pdf, normal)]], colWidths=[17.2 * cm])
     recommendation.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), SOFT_RED),
@@ -1066,7 +2144,10 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     seal_title = "منصة نبض" if is_pdf_ar else "NABDH AI"
     seal_sub = pdf_labels["research_platform"]
     seal_verify = pdf_labels["verified_analysis"]
-    straight_seal = Table([[ptxt(f"<b>{seal_title}</b><br/>{seal_sub}<br/>{seal_verify}", center_small)]], colWidths=[4.6 * cm])
+    straight_seal = Table(
+        [[ptxt(f"<b>{seal_title}</b><br/>{seal_sub}<br/>{seal_verify}", center_small)]],
+        colWidths=[4.6 * cm]
+    )
     straight_seal.setStyle(TableStyle([
         ("BOX", (0, 0), (-1, -1), 1.3, PRIMARY_BLUE),
         ("BACKGROUND", (0, 0), (-1, -1), LIGHT_BLUE),
@@ -1100,27 +2181,114 @@ def build_pdf_report(features, predicted, confidence, probabilities, lang="Engli
     pdf = buffer.getvalue()
     buffer.close()
     return pdf
-#====================================================
 
-ARABIC_FONT_PATH = "/System/Library/Fonts/Supplemental/Arial Unicode.ttf"
+# =====================================================
+# SECURE ACCESS GATE - CREATIVE LOGIN FIXED
+# =====================================================
+def render_secure_access():
+    role_options = [t["hospital_staff"], t["administrator"]]
 
-def setup_pdf_fonts():
-    try:
-        pdfmetrics.registerFont(TTFont("ArabicFont", ARABIC_FONT_PATH))
-        return "ArabicFont"
-    except Exception:
-        return "Helvetica"
+    welcome_title = "مرحبًا بك" if is_ar else "Welcome Back"
+    welcome_text = (
+        "سجّلي الدخول للمتابعة إلى منصة نبض AI البحثية الطبية."
+        if is_ar else
+        "Sign in to continue to Nabdh AI medical research platform."
+    )
+    secure_line = (
+        "ذكاء اصطناعي + رنين مغناطيسي + خصوصية"
+        if is_ar else
+        "AI + MRI + Federated Privacy"
+    )
+    mini_title = "تسجيل دخول آمن" if is_ar else "Secure Login"
 
-def ar_text(text):
-    if text is None:
-        return ""
-    reshaped = arabic_reshaper.reshape(str(text))
-    return get_display(reshaped)
+    if not LOGO_SRC:
+        st.warning("Logo file not found. Please place nabdh_logo.png inside the assets folder.")
 
-def to_arabic_digits(text):
-    western = "0123456789"
-    eastern = "٠١٢٣٤٥٦٧٨٩"
-    return str(text).translate(str.maketrans(western, eastern))
+    logo_html = (
+        f'<img src="{LOGO_SRC}" class="secure-logo-img" alt="Nabdh AI Logo">' if LOGO_SRC else f'<div class="secure-title">{t["brand"]}</div>'
+        if LOGO_SRC else
+        f'<div class="secure-title">{t["brand"]}</div>'
+    )
+
+    st.markdown("<div class='secure-page'>", unsafe_allow_html=True)
+
+    left_col, right_col = st.columns([1.02, 0.98], gap="large")
+
+    with left_col:
+        secure_visual_html = f"""
+<div class="secure-visual-panel">
+    <div class="secure-orbit"></div>
+
+    <div class="secure-logo-card">
+        <img src="{LOGO_SRC}" class="secure-logo-img" alt="Nabdh AI Logo">
+    </div>
+
+    <div class="secure-visual-content">
+        <div class="secure-title">{t['secure_access_title']}</div>
+        <div class="secure-subtitle">{t['secure_access_subtitle']}</div>
+        <div class="secure-text">{t['secure_access_text']}</div>
+        <div class="secure-badge">{t['secured_by']}</div>
+    </div>
+
+    <div class="secure-wave">{secure_line}</div>
+</div>
+"""
+        st.markdown(secure_visual_html, unsafe_allow_html=True)
+
+    with right_col:
+        secure_form_heading_html = f"""
+<div class="secure-form-heading">
+    <div class="secure-form-mini-title">{mini_title}</div>
+    <h2>{welcome_title}</h2>
+    <p>{welcome_text}</p>
+</div>
+"""
+        st.markdown(secure_form_heading_html, unsafe_allow_html=True)
+
+        with st.form("secure_access_form"):
+            role = st.selectbox(t["role"], role_options)
+            national_id = st.text_input(t["national_id"], placeholder="1234567890")
+            password = st.text_input(t["password"], type="password", placeholder="••••••••")
+            otp = st.text_input(t["otp"], placeholder="123456")
+
+            submitted = st.form_submit_button(t["sign_in"], use_container_width=True)
+
+            if submitted:
+                if national_id.strip() and password.strip() and otp.strip() == "123456":
+                    st.session_state.authenticated = True
+                    st.session_state.user_role = role
+                    st.session_state.user_id = national_id.strip()
+                    st.session_state.user_display_name = f"{role} - {national_id.strip()[-4:]}"
+                    st.success(t["access_granted"])
+                    st.rerun()
+                else:
+                    st.error(t["access_denied"])
+
+        st.markdown(f"<div class='secure-demo-line'>{t['demo_otp']}</div>", unsafe_allow_html=True)
+
+        login_lang = st.radio(
+            t["language"],
+            ["English", "العربية"],
+            index=0 if st.session_state.language == "English" else 1,
+            key="login_lang_radio",
+            horizontal=True
+        )
+
+        if login_lang != st.session_state.language:
+            st.session_state.language = login_lang
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# Important: do not render the main system before login.
+if st.session_state.get("authenticated") and not st.session_state.get("user_role"):
+    st.session_state.authenticated = False
+
+if not st.session_state.authenticated:
+    render_secure_access()
+    st.stop()
+
 
 # =====================================================
 # TOP BAR
@@ -1129,26 +2297,42 @@ st.markdown(
     f"""
     <div class="topbar rtl">
         <div>
-            <div class="brand-click">{t['brand']}</div>
-            <div class="brand-sub">{t['subtitle']}</div>
+            {f'<img src="{LOGO_SRC}" class="brand-logo-img" alt="Nabdh AI Logo">' if LOGO_SRC else f'<div class="brand-click">{t["brand"]}</div><div class="brand-sub">{t["subtitle"]}</div>'}
         </div>
-        <div>{t['ai_system']}</div>
+        <div>
+            <div>{t['ai_system']}</div>
+            <div class="access-chip">{t['current_user']}: {st.session_state.user_role}</div>
+        </div>
     </div>
     """,
     unsafe_allow_html=True
 )
 
 st.markdown('<div class="nav-shell">', unsafe_allow_html=True)
-nav_items = [
-    ("home", t["home"]),
-    ("dashboard", t["dashboard"]),
-    ("upload", t["upload"]),
-    ("segmentation", t["segmentation"]),
-    ("features", t["features"]),
-    ("prediction", t["prediction"]),
-    ("report", t["report"]),
-    ("federated", t["federated"]),
+all_pages = [
+    (t["home"], "home"),
+    (t["dashboard"], "dashboard"),
+    (t["upload"], "upload"),
+    (t["segmentation"], "segmentation"),
+    (t["features"], "features"),
+    (t["prediction"], "prediction"),
+    (t["report"], "report"),
+    (t["history"], "history"),
+    (t["federated"], "federated"),
 ]
+
+current_role = st.session_state.get("user_role", "Hospital Staff")
+allowed_pages = allowed_pages_by_role(current_role)
+
+pages = [
+    item for item in all_pages
+    if item[1] in allowed_pages
+]
+
+nav_items = [(key, label) for label, key in pages]
+
+if st.session_state.page not in allowed_pages and st.session_state.page not in ["about", "help", "settings"]:
+    st.session_state.page = "home"
 
 cols = st.columns(len(nav_items) + 1)
 
@@ -1181,6 +2365,14 @@ with menu_col:
             set_page("help")
         if st.button(t["settings"], key="menu_settings", use_container_width=True):
             set_page("settings")
+        st.divider()
+        if st.button(t["sign_out"], key="menu_sign_out", use_container_width=True):
+            st.session_state.authenticated = False
+            st.session_state.user_role = ""
+            st.session_state.user_id = ""
+            st.session_state.user_display_name = ""
+            st.session_state.page = "home"
+            st.rerun()
 st.markdown('</div>', unsafe_allow_html=True)
 
 # =====================================================
@@ -1189,6 +2381,16 @@ st.markdown('</div>', unsafe_allow_html=True)
 page = st.session_state.page
 
 if page == "home":
+    if LOGO_SRC:
+        st.markdown(
+            f"""
+            <div class="home-logo-wrap">
+                <img src="{LOGO_SRC}" class="home-logo-img" alt="Nabdh AI Logo">
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     st.markdown(
         f"""
         <div class="hero rtl">
@@ -1209,29 +2411,72 @@ if page == "home":
 
 elif page == "about":
     page_title(t["about"])
+
+    if is_ar:
+        vision_text = """
+        أن تكون منصة نبض نموذجاً وطنياً رائداً في تشخيص أمراض القلب
+        باستخدام الذكاء الاصطناعي والتعلم الموحد مع المحافظة على
+        خصوصية البيانات الطبية.
+        """
+
+        mission_text = """
+        توفير منصة بحثية ذكية تدعم تحليل صور الرنين المغناطيسي للقلب
+        واستخراج الخصائص القلبية والتنبؤ بالأمراض دون مشاركة البيانات
+        الطبية الخام بين الجهات الصحية.
+        """
+
+        objectives_html = """
+        <ol>
+            <li>تحليل صور الرنين المغناطيسي للقلب.</li>
+            <li>تنفيذ التجزئة الدلالية لمناطق القلب.</li>
+            <li>استخراج الخصائص العلمية للقلب.</li>
+            <li>التنبؤ الآلي بأمراض القلب.</li>
+            <li>دعم بيئات التعلم الموحد بين المستشفيات.</li>
+        </ol>
+        """
+    else:
+        vision_text = """
+        To become a leading intelligent platform for cardiac disease diagnosis
+        using AI and federated learning while preserving medical privacy.
+        """
+
+        mission_text = """
+        To provide an intelligent research platform for cardiac MRI analysis,
+        feature extraction, and disease prediction without sharing raw patient data.
+        """
+
+        objectives_html = """
+        <ol>
+            <li>Analyze cardiac MRI images.</li>
+            <li>Perform semantic segmentation.</li>
+            <li>Extract scientific cardiac features.</li>
+            <li>Predict cardiac diseases automatically.</li>
+            <li>Support federated hospital collaboration.</li>
+        </ol>
+        """
+
     st.markdown(
         f"""
         <div class="card rtl">
+            {f'<img src="{LOGO_SRC}" class="about-logo-img" alt="Nabdh AI Logo">' if LOGO_SRC else ''}
             <h2>{t['brand']}</h2>
             <p><b>{t['subtitle']}</b></p>
             <p>{t['university']}<br>{t['college']}<br>{t['department']}</p>
         </div>
-        <div class="card rtl">
+
+        <div class="blue-card rtl">
             <h3>{t['vision']}</h3>
-            <p>{t['vision_text']}</p>
+            <p>{vision_text}</p>
         </div>
+
         <div class="card rtl">
             <h3>{t['mission']}</h3>
-            <p>{t['mission_text']}</p>
+            <p>{mission_text}</p>
         </div>
+
         <div class="card rtl">
             <h3>{t['objectives']}</h3>
-            <ol>
-                <li>{t['objective_1']}</li>
-                <li>{t['objective_2']}</li>
-                <li>{t['objective_3']}</li>
-                <li>{t['objective_4']}</li>
-            </ol>
+            {objectives_html}
         </div>
         """,
         unsafe_allow_html=True
@@ -1270,12 +2515,12 @@ elif page == "upload":
         <div class="upload-box rtl">
             <h3>{t['upload_title']}</h3>
             <p>{t['upload_text']}</p>
-            <p style="color:#64748b; font-size:14px;">{t['uploaded_mri_usage']}</p>
+            <p style="color:#64748b; font-size:14px;">The uploaded MRI will be used for segmentation, feature extraction, prediction, and clinical reporting.</p>
         </div>
         """,
         unsafe_allow_html=True
     )
-    uploaded_file = st.file_uploader(t["select_file"], label_visibility="visible")
+    uploaded_file = st.file_uploader("", label_visibility="collapsed")
     if uploaded_file is not None:
         with h5py.File(uploaded_file, "r") as h5:
             image = h5["image"][:]
@@ -1329,7 +2574,7 @@ elif page == "segmentation":
             f"""
             <div class="card rtl">
                 <h3>{t['segmentation']}</h3>
-                <p>{t['segmentation_desc']}</p>
+                <p>This page visualizes the cardiac segmentation output and separates the main cardiac structures: right ventricle, myocardium, and left ventricle.</p>
             </div>
             """,
             unsafe_allow_html=True
@@ -1382,22 +2627,22 @@ elif page == "segmentation":
                 unsafe_allow_html=True
             )
 
-        page_title(t["segmentation_quality"])
+        page_title("Segmentation Quality" if not is_ar else "جودة التجزئة")
         q1, q2, q3 = st.columns(3)
         with q1: stat_card("Dice Score", "0.838", "Final FL Round")
         with q2: stat_card("IoU", "0.744", "Final FL Round")
         with q3: stat_card("Pixel Accuracy", "98.7%", "Final FL Round")
 
         st.markdown(
-            f"""
+            """
             <div class="card rtl">
-                <h3>{t['clinical_interpretation']}</h3>
-                <p>{t['segmentation_desc']}</p>
+                <h3>Clinical Interpretation</h3>
+                <p>The segmentation output identifies the main cardiac structures required for downstream cardiac feature extraction. The extracted RV, MYO, and LV regions are used to calculate morphological and clinical cardiac indicators.</p>
             </div>
             """,
             unsafe_allow_html=True
         )
-        st.success(t["segmentation_success"])
+        st.success("Segmentation completed successfully. The output is ready for feature extraction.")
 
 elif page == "features":
     page_title(t["features"])
@@ -1427,7 +2672,7 @@ elif page == "features":
         chart_df = pd.DataFrame({"Region": ["RV", "MYO", "LV"], "Volume Proxy": [rv_volume, myo_volume, lv_volume]})
         st.markdown("<div class='card rtl'><h3>Cardiac Volume Proxy Distribution</h3></div>", unsafe_allow_html=True)
         st.bar_chart(chart_df.set_index("Region"))
-        st.success(t["feature_success"])
+        st.success("Feature extraction completed successfully. The extracted features are ready for disease prediction.")
         if st.button("Go to Prediction" if not is_ar else "الانتقال إلى التنبؤ", key="features_to_prediction", use_container_width=True):
             set_page("prediction")
 
@@ -1437,6 +2682,20 @@ elif page == "prediction":
         st.warning(t["no_file"])
     else:
         features, predicted, confidence, probabilities = ensure_prediction()
+
+    if is_ar:
+        st.write("المرض المتوقع:", predicted)
+        st.write("درجة الثقة:", confidence)
+        st.write("جميع الاحتمالات:", probabilities)
+    else:
+        st.write("Disease:", predicted)
+        st.write("Confidence:", confidence)
+        st.write("Probabilities:", probabilities)
+        save_current_analysis_once(
+        predicted,
+        confidence
+    )
+
         full_name = DISEASE_FULL_NAME.get(predicted, predicted)
         disease_display = DISEASE_AR.get(predicted, predicted) if is_ar else f"{predicted} ({full_name})"
         risk_level = "High" if confidence >= 70 else "Moderate"
@@ -1460,23 +2719,20 @@ elif page == "prediction":
             """,
             unsafe_allow_html=True
         )
-        st.markdown(
-            f"""
-            <div class="blue-card rtl">
-                <b>{t['prediction_basis']}</b><br>
-                {predicted} — {disease_display} — {confidence:.2f}%
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        prob_df = pd.DataFrame({"Disease": list(probabilities.keys()), "Probability": [round(v * 100, 2) for v in probabilities.values()]})
+        st.markdown(f"<div class='card rtl'><h3>{t['probability_distribution']}</h3></div>", unsafe_allow_html=True)
+        st.bar_chart(prob_df.set_index("Disease"))
         st.markdown(f"<div class='card rtl'><h3>{t['recommendation']}</h3><p>{t['recommendation_text']}</p></div>", unsafe_allow_html=True)
 
 elif page == "report":
     page_title(t["report"])
+
     if "image" not in st.session_state or "mask" not in st.session_state:
         st.warning(t["no_file"])
     else:
         features, predicted, confidence, probabilities = ensure_prediction()
+        save_current_analysis_once(predicted, confidence)
+
         full_name = DISEASE_FULL_NAME.get(predicted, predicted)
         disease_local = DISEASE_AR.get(predicted, predicted) if is_ar else full_name
         generated = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -1496,25 +2752,31 @@ elif page == "report":
             unsafe_allow_html=True
         )
 
-        pdf_bytes = build_pdf_report(features, predicted, confidence, probabilities, st.session_state.language)
+        pdf_bytes = build_pdf_report(
+            features,
+            predicted,
+            confidence,
+            probabilities,
+            st.session_state.language
+        )
 
         b1, b2, b3 = st.columns([1, 1, 1])
 
-        with b1:
-            if pdf_bytes:
+        if pdf_bytes:
+            b64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
+            with b1:
                 st.download_button(
-                    t["download_pdf"],
+                    "Download" if not is_ar else "تنزيل",
                     data=pdf_bytes,
                     file_name=f"Nabdh_AI_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
                     mime="application/pdf",
                     use_container_width=True,
                     key="download_pdf_report"
                 )
-            else:
-                st.error("Install reportlab first: python3 -m pip install reportlab")
 
-        with b2:
-            print_label = t["print_report"]
+            with b2:
+                print_label = "طباعة" if is_ar else "Print"
             components.html(
                 f"""
                 <button onclick="window.parent.print()" style="
@@ -1522,61 +2784,120 @@ elif page == "report":
                     height:44px;
                     border:none;
                     background:transparent;
-                    font-size:18px;
-                    font-weight:700;
+                    font-size:16px;
+                    font-weight:800;
                     color:#0B3B75;
                     text-decoration:underline;
                     cursor:pointer;">
                     {print_label}
                 </button>
                 """,
-                height=55
+                height=85
             )
 
-        with b3:
-            st.markdown(
-                """
-                <style>
-                div[data-testid="stTextInput"] input {
-                    direction: ltr !important;
-                    text-align: left !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
-            st.text_input(
-                "Share Link" if not is_ar else "رابط المشاركة",
-                value="http://localhost:8501",
-                key="share_link_box"
+            with b3:
+                st.text_input(
+                    "Share Link" if not is_ar else "رابط المشاركة",
+                    value="http://localhost:8501",
+                    key="share_link_box"
+                )
+
+            st.success(t["official_pdf_ready"])
+
+        else:
+            with b1:
+                st.button("Download" if not is_ar else "تنزيل", use_container_width=True, disabled=True)
+            with b2:
+                st.button("Print" if not is_ar else "طباعة", use_container_width=True, disabled=True)
+            with b3:
+                st.text_input(
+                    "Share Link" if not is_ar else "رابط المشاركة",
+                    value="http://localhost:8501",
+                    key="share_link_box_no_pdf"
+                )
+
+            st.error(
+                "Install reportlab first: python3 -m pip install reportlab"
+                if not is_ar else
+                "ثبتي reportlab أولًا: python3 -m pip install reportlab"
             )
 
-        st.success(t["official_pdf_ready"])
+
+elif page == "history":
+    page_title(t["history_title"])
+    history_df = load_history_dataframe(is_ar=is_ar)
+
+    st.markdown(
+        f"""
+        <div class="card rtl">
+            <h3>{t['history_title']}</h3>
+            <p>{t['history_note']}</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    if history_df.empty:
+        st.info(t["history_empty"])
+    else:
+        raw_df = pd.read_csv(HISTORY_FILE, engine="python", on_bad_lines="skip")
+        total_cases = len(raw_df)
+        disease_types = raw_df["Disease Code"].nunique() if "Disease Code" in raw_df.columns else 0
+        avg_conf = raw_df["Confidence"].mean() if "Confidence" in raw_df.columns else 0
+
+        h1, h2, h3 = st.columns(3)
+        with h1:
+            stat_card(t["history_total_cases"], str(total_cases), t["completed"])
+        with h2:
+            stat_card(t["history_disease_types"], str(disease_types), "NOR / DCM / HCM / MINF / ARV")
+        with h3:
+            stat_card(t["history_avg_confidence"], f"{avg_conf:.2f}%", t["feature_based_prediction"])
+
+        st.markdown(f"<div class='card rtl'><h3>{t['history_table']}</h3></div>", unsafe_allow_html=True)
+        st.dataframe(history_df, use_container_width=True, hide_index=True)
+
+        if "Disease Code" in raw_df.columns:
+            chart_df = raw_df["Disease Code"].value_counts().reset_index()
+            chart_df.columns = ["Disease", "Cases"]
+            st.markdown(f"<div class='card rtl'><h3>{t['distribution']}</h3></div>", unsafe_allow_html=True)
+            st.bar_chart(chart_df.set_index("Disease"))
+
 
 elif page == "federated":
     page_title(t["federated"])
+
     hospitals = pd.DataFrame({
         "Hospital": ["Hospital A", "Hospital B", "Hospital C", "Hospital D", "Hospital E"],
         "Samples": [300, 302, 304, 344, 286],
         "Round": [3, 3, 3, 3, 3],
         "Status": ["Connected", "Connected", "Connected", "Connected", "Connected"]
     })
+
     st.dataframe(hospitals, use_container_width=True, hide_index=True)
-    rounds = pd.DataFrame({"Round": [1, 2, 3], "Loss": [0.725, 0.154, 0.087], "Dice": [0.605, 0.769, 0.838], "IoU": [0.497, 0.661, 0.744]})
+
+    rounds = pd.DataFrame({
+        "Round": [1, 2, 3],
+        "Loss": [0.725, 0.154, 0.087],
+        "Dice": [0.605, 0.769, 0.838],
+        "IoU": [0.497, 0.661, 0.744]
+    })
+
     st.markdown("<div class='card rtl'><h3>Federated Learning Performance</h3></div>", unsafe_allow_html=True)
     st.line_chart(rounds.set_index("Round"))
     st.dataframe(rounds, use_container_width=True, hide_index=True)
 
+
 elif page == "help":
     page_title(t["help"])
+
     if is_ar:
-        help_title = "طريقة استخدام نبض AI"
+        help_title = "طريقة استخدام نبض"
         steps = [
             "ارفع ملف الرنين المغناطيسي للقلب.",
             "راجعي مخرجات التجزئة والعرض المدمج.",
             "استخرجي الخصائص القلبية من RV وMYO وLV.",
             "افتحي صفحة التنبؤ لعرض النتيجة المبنية على الخصائص.",
-            "استخدمي خيارات التقرير: تنزيل، طباعة، أو مشاركة الرابط."
+            "حمّلي التقرير الرسمي بصيغة PDF أو استخدمي رابط المشاركة."
         ]
     else:
         help_title = "How to use Nabdh AI"
@@ -1585,9 +2906,11 @@ elif page == "help":
             "Review segmentation output and overlay.",
             "Extract cardiac features from RV, MYO, and LV.",
             "Open Prediction to view feature-based disease estimation.",
-            "Use the report options: download, print, or share link."
+            "Download the official PDF report or use the share link."
         ]
+
     items = "".join([f"<li>{step}</li>" for step in steps])
+
     st.markdown(
         f"""
         <div class="card rtl">
@@ -1598,8 +2921,10 @@ elif page == "help":
         unsafe_allow_html=True
     )
 
+
 elif page == "settings":
     page_title(t["settings"])
+
     st.markdown(
         f"""
         <div class="card rtl">
@@ -1611,13 +2936,14 @@ elif page == "settings":
         unsafe_allow_html=True
     )
 
+
 # =====================================================
 # FOOTER IN ALL PAGES
 # =====================================================
 st.markdown(
     f"""
     <div class="footer rtl">
-        <b>© 2026 {t['brand']} — {t['footer_platform']}</b><br>
+        <b>© 2026 {t['brand']} — Federated AI Cardiac Diagnosis Platform</b><br>
         {t['notice']}
     </div>
     """,
