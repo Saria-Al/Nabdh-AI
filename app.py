@@ -166,11 +166,11 @@ TEXT = {
         "probability_distribution": "Disease Probability Distribution",
     },
     "العربية": {
-        "brand": "نبض AI",
+        "brand": "نبض ",
         "subtitle": "منصة ذكية لتشخيص أمراض القلب",
         "ai_system": "نظام ذكاء اصطناعي للقلب",
         "home": "الرئيسية",
-        "about": "عن نبض AI",
+        "about": "عن نبض ",
         "dashboard": "لوحة التحكم",
         "upload": "رفع الرنين",
         "segmentation": "التجزئة",
@@ -224,7 +224,7 @@ TEXT = {
         "performance": "أداء النموذج",
         "recent": "آخر تحليلات الرنين",
         "upload_title": "رفع صورة الرنين المغناطيسي للقلب",
-        "upload_text": "ارفعي ملف الرنين المغناطيسي للقلب لعرض الصورة الأصلية وقناع التجزئة.",
+        "upload_text": "ارفع ملف الرنين المغناطيسي للقلب لعرض الصورة الأصلية وقناع التجزئة.",
         "original": "صورة الرنين الأصلية",
         "mask": "قناع التجزئة",
         "overlay": "العرض المدمج",
@@ -1342,6 +1342,85 @@ st.markdown(
         display: block;
         margin: 0 auto 18px auto;
     }}
+    .right-login-card {{
+    background: #FFFFFF;
+    border: 1px solid #E5EAF2;
+    border-radius: 30px;
+    padding: 38px 42px;
+    box-shadow: 0 22px 55px rgba(15, 23, 42, 0.10);
+    margin-top: 20px;
+}}
+
+.right-login-card .secure-form-heading h2 {{
+    font-size: 42px;
+    font-weight: 950;
+    color: #07152E;
+}}
+
+.right-login-card .secure-form-heading p {{
+    font-size: 16px;
+    color: #64748B;
+}}
+
+.left-login-panel {{
+
+height:760px;
+
+width:100%;
+
+
+display:flex;
+
+flex-direction:column;
+
+
+justify-content:center;
+
+align-items:center;
+
+
+border-radius:35px;
+
+
+background:
+linear-gradient(
+135deg,
+#071B3A,
+#1D4F9B);
+
+
+padding:60px;
+
+
+color:white;
+
+
+text-align:center;
+
+}}
+
+.left-login-panel h2 {{
+    font-size: 42px;
+    font-weight: 950;
+    margin-bottom: 18px;
+}}
+
+.left-login-panel h4 {{
+    font-size: 25px;
+    font-weight: 850;
+    margin-bottom: 22px;
+}}
+
+.left-login-panel p {{
+    font-size: 16px;
+    color: #D7E6F8;
+}}
+
+.heart_icon {{
+    font-size: 82px;
+    margin-top: 80px;
+}}
+
 
     </style>
     """,
@@ -2190,59 +2269,56 @@ def render_secure_access():
 
     welcome_title = "مرحبًا بك" if is_ar else "Welcome Back"
     welcome_text = (
-        "سجّلي الدخول للمتابعة إلى منصة نبض AI البحثية الطبية."
+        "سجّل الدخول للمتابعة إلى منصة نبض الذكية البحثية الطبية."
         if is_ar else
         "Sign in to continue to Nabdh AI medical research platform."
     )
-    secure_line = (
-        "ذكاء اصطناعي + رنين مغناطيسي + خصوصية"
-        if is_ar else
-        "AI + MRI + Federated Privacy"
-    )
+  
     mini_title = "تسجيل دخول آمن" if is_ar else "Secure Login"
 
     if not LOGO_SRC:
         st.warning("Logo file not found. Please place nabdh_logo.png inside the assets folder.")
 
     logo_html = (
-        f'<img src="{LOGO_SRC}" class="secure-logo-img" alt="Nabdh AI Logo">' if LOGO_SRC else f'<div class="secure-title">{t["brand"]}</div>'
-        if LOGO_SRC else
-        f'<div class="secure-title">{t["brand"]}</div>'
-    )
-
+    f'<img src="{LOGO_SRC}" class="secure-logo-img" alt="Nabdh AI Logo">'
+    if LOGO_SRC
+    else f'<div class="secure-title">{t["brand"]}</div>'
+)
     st.markdown("<div class='secure-page'>", unsafe_allow_html=True)
 
-    left_col, right_col = st.columns([1.02, 0.98], gap="large")
+    if is_ar:
+        form_col, visual_col = st.columns([0.98, 1.02], gap="large")
+    else:
+        visual_col, form_col = st.columns([1.02, 0.98], gap="large")
 
-    with left_col:
-        secure_visual_html = f"""
-<div class="secure-visual-panel">
-    <div class="secure-orbit"></div>
+    with visual_col:
+        visual_title = "نبض " if is_ar else "Nabdh AI"
+        visual_sub = "منصة ذكية وآمنة لصحة القلب" if is_ar else "Secure Medical Platform"
+        
 
-    <div class="secure-logo-card">
-        <img src="{LOGO_SRC}" class="secure-logo-img" alt="Nabdh AI Logo">
-    </div>
+        st.markdown(
+            f"""
+            <div class="left-login-panel rtl">
+                <h2>{visual_title}</h2>
+                <h4>{visual_sub}</h4>
+                <div class="heart_icon">🫀</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
-    <div class="secure-visual-content">
-        <div class="secure-title">{t['secure_access_title']}</div>
-        <div class="secure-subtitle">{t['secure_access_subtitle']}</div>
-        <div class="secure-text">{t['secure_access_text']}</div>
-        <div class="secure-badge">{t['secured_by']}</div>
-    </div>
-
-    <div class="secure-wave">{secure_line}</div>
-</div>
-"""
-        st.markdown(secure_visual_html, unsafe_allow_html=True)
-
-    with right_col:
+###################################
+# RIGHT LOGIN FORM
+###################################
+    with form_col:
+        st.markdown('<div class="right-login-card rtl">', unsafe_allow_html=True)
         secure_form_heading_html = f"""
-<div class="secure-form-heading">
-    <div class="secure-form-mini-title">{mini_title}</div>
-    <h2>{welcome_title}</h2>
-    <p>{welcome_text}</p>
-</div>
-"""
+        <div class="secure-form-heading">
+            <div class="secure-form-mini-title">{mini_title}</div>
+            <h2>{welcome_title}</h2>
+            <p>{welcome_text}</p>
+        </div>
+        """
         st.markdown(secure_form_heading_html, unsafe_allow_html=True)
 
         with st.form("secure_access_form"):
@@ -2279,7 +2355,7 @@ def render_secure_access():
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
-
+    
 
 # Important: do not render the main system before login.
 if st.session_state.get("authenticated") and not st.session_state.get("user_role"):
